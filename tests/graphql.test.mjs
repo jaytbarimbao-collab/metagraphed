@@ -4479,6 +4479,15 @@ describe("graphql — subnet_concentration_history (#5901, neuron_daily trend + 
     assert.equal(body.data?.subnet_concentration_history ?? null, null);
   });
 
+  test("a negative netuid is a GraphQL error, not an empty series", async () => {
+    const { body } = await gql(
+      "{ subnet_concentration_history(netuid: -1) { point_count } }",
+    );
+    assert.ok(body.errors, "expected a GraphQL error");
+    assert.ok(/netuid/i.test(body.errors[0].message));
+    assert.equal(body.data?.subnet_concentration_history ?? null, null);
+  });
+
   test("subnet_concentration_history is weighted as a fan-out field", () => {
     assert.equal(FIELD_COMPLEXITY.subnet_concentration_history, 5);
   });
