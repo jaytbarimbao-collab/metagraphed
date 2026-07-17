@@ -14,6 +14,7 @@ import { PageHero, ShareButton, SectionAnchor, CopyableCode, StatTile } from "@j
 import { ValidatorHistoryChart } from "@/components/metagraphed/validator-history-chart";
 import { ValidatorApyPanel } from "@/components/metagraphed/validator-apy-panel";
 import { ValidatorIdentityChip } from "@/components/metagraphed/validator-identity-chip";
+import { AccountAddress } from "@/components/metagraphed/account-address";
 import { WatchValidatorAlert } from "@/components/metagraphed/watch-validator-alert";
 import { StakeUnstakeModal } from "@/components/metagraphed/stake-unstake-modal";
 import { TakeManagementModal } from "@/components/metagraphed/take-management-modal";
@@ -288,8 +289,28 @@ function ValidatorDetail({ hotkey }: { hotkey: string }) {
               Cross-subnet performance, nominators, and staking history for one Bittensor validator
               hotkey.
             </span>
-            <span className="inline-flex max-w-full min-w-0 rounded-2xl border border-border/80 bg-card/80 px-3 py-2 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.55)]">
-              <CopyableCode value={hotkey} truncate={false} className="max-w-full" />
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex max-w-full min-w-0 rounded-2xl border border-border/80 bg-card/80 px-3 py-2 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.55)]">
+                <CopyableCode value={hotkey} truncate={false} className="max-w-full" />
+              </span>
+              {/* The owning coldkey was fetched and normalized into ValidatorDetail
+                  but only ever read for the isOwner check below, so a regular
+                  visitor had no way to reach the account controlling this hotkey
+                  (#6427). AccountAddress is the app's standard ss58 treatment and
+                  renders `fallback` when the value is absent or not a valid ss58.
+                  It keeps its default truncation here: the hotkey beside it is the
+                  page's subject and earns the full value, while a second 48-char
+                  ss58 would overflow the 375px viewport. The whole address stays
+                  reachable via the copy button, the title tooltip, and the link. */}
+              <span className="inline-flex max-w-full min-w-0 items-center gap-2 rounded-2xl border border-border/80 bg-card/80 px-3 py-2 font-mono text-xs shadow-[0_16px_40px_-32px_rgba(15,23,42,0.55)]">
+                <span className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+                  Coldkey
+                </span>
+                <AccountAddress
+                  ss58={detail.coldkey}
+                  fallback={<span className="text-ink-muted">Unknown</span>}
+                />
+              </span>
             </span>
           </span>
         }
