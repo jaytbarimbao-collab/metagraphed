@@ -3675,3 +3675,46 @@ export interface AlertTriggerCreated {
   match_count: number;
   owner_token: string;
 }
+
+/**
+ * Within-domain emission concentration for one capability tag, from
+ * `GET /api/v1/domains` and `GET /api/v1/domains/{tag}/summary`. Mirrors the
+ * economics `emission_concentration` shape the backend computes over the
+ * domain's member subnets — every field nullable so a cold/partial rollup
+ * (e.g. a single-holder domain) degrades to a schema-stable shape.
+ */
+export interface DomainConcentration {
+  holders: number | null;
+  total: number | null;
+  gini: number | null;
+  hhi: number | null;
+  hhi_normalized: number | null;
+  nakamoto_coefficient: number | null;
+  top_1pct_share: number | null;
+  top_5pct_share: number | null;
+  top_10pct_share: number | null;
+  top_20pct_share: number | null;
+  entropy: number | null;
+  entropy_normalized: number | null;
+}
+
+/**
+ * One capability-tag rollup — a row of `GET /api/v1/domains` and the whole
+ * payload of `GET /api/v1/domains/{tag}/summary` (identical shape). Aggregates
+ * the domain's member subnets: their count, the netuids themselves, total
+ * stake, total emission share, and the within-domain emission concentration.
+ */
+export interface DomainRollup {
+  domain: string;
+  subnet_count: number;
+  netuids: number[];
+  total_stake_tao: number | null;
+  total_emission_share: number | null;
+  emission_concentration: DomainConcentration | null;
+}
+
+/** `GET /api/v1/domains` — the per-domain rollup overview across the taxonomy. */
+export interface DomainsRollup {
+  domain_count: number;
+  domains: DomainRollup[];
+}

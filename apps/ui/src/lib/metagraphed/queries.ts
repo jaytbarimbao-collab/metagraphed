@@ -116,6 +116,9 @@ import type {
   Extrinsic,
   ExtrinsicCallArg,
   SudoKey,
+  DomainRollup,
+  DomainsRollup,
+  DomainConcentration,
   NetworkParameters,
   RuntimeTransition,
   RuntimeVersionHistory,
@@ -2245,6 +2248,103 @@ export const runtimeVersionHistoryQuery = () =>
       } as ApiResult<RuntimeVersionHistory>;
     },
     staleTime: STALE_LONG,
+  });
+
+// Domains — the per-capability-tag rollup over the 14-tag taxonomy. Both
+// `GET /api/v1/domains` (list) and `GET /api/v1/domains/{tag}/summary` (detail)
+// serve the same per-domain shape (the summary is one list row), so a single
+// normalizer feeds both. Every numeric coerces through firstFiniteNumber →
+// null so a cold/partial rollup (e.g. a single-holder domain whose gini is
+// absent) renders an em-dash instead of NaN, matching the rest of the app.
+function normalizeDomainConcentration(raw: unknown): DomainConcentration | null {
+  if (!isRecord(raw)) return null;
+  return {
+    holders: firstFiniteNumber(raw.holders) ?? null,
+    total: firstFiniteNumber(raw.total) ?? null,
+    gini: firstFiniteNumber(raw.gini) ?? null,
+    hhi: firstFiniteNumber(raw.hhi) ?? null,
+    hhi_normalized: firstFiniteNumber(raw.hhi_normalized) ?? null,
+    nakamoto_coefficient: firstFiniteNumber(raw.nakamoto_coefficient) ?? null,
+    top_1pct_share: firstFiniteNumber(raw.top_1pct_share) ?? null,
+    top_5pct_share: firstFiniteNumber(raw.top_5pct_share) ?? null,
+    top_10pct_share: firstFiniteNumber(raw.top_10pct_share) ?? null,
+    top_20pct_share: firstFiniteNumber(raw.top_20pct_share) ?? null,
+    entropy: firstFiniteNumber(raw.entropy) ?? null,
+    entropy_normalized: firstFiniteNumber(raw.entropy_normalized) ?? null,
+  };
+}
+
+/** Normalize one domain rollup row. Returns null when there's no usable
+ * `domain` tag (a junk row is dropped rather than rendered as a blank link). */
+export function normalizeDomainRollup(raw: unknown): DomainRollup | null {
+  if (!isRecord(raw)) return null;
+  const domain = firstString(raw.domain);
+  if (!domain) return null;
+  const netuids = Array.isArray(raw.netuids)
+    ? raw.netuids.flatMap((n) => {
+        const v = firstFiniteNumber(n);
+        return v == null ? [] : [v];
+      })
+    : [];
+  return {
+    domain,
+    subnet_count: firstFiniteNumber(raw.subnet_count) ?? netuids.length,
+    netuids,
+    total_stake_tao: firstFiniteNumber(raw.total_stake_tao) ?? null,
+    total_emission_share: firstFiniteNumber(raw.total_emission_share) ?? null,
+    emission_concentration: normalizeDomainConcentration(raw.emission_concentration),
+  };
+}
+
+/** Normalize the `GET /api/v1/domains` overview envelope's `data`. */
+export function normalizeDomainsRollup(raw: unknown): DomainsRollup {
+  const d = isRecord(raw) ? raw : {};
+  const domains = Array.isArray(d.domains)
+    ? d.domains.flatMap((row) => {
+        const r = normalizeDomainRollup(row);
+        return r ? [r] : [];
+      })
+    : [];
+  return {
+    domain_count: firstFiniteNumber(d.domain_count) ?? domains.length,
+    domains,
+  };
+}
+
+/** Per-domain rollup overview across the capability-tag taxonomy (#6996). The
+ * whole taxonomy is small (14 tags), computed live from the economics layer —
+ * no pagination params. */
+export const domainsQuery = () =>
+  queryOptions({
+    queryKey: k("domains"),
+    queryFn: async ({ signal }) => {
+      const res = await apiFetch<unknown>("/api/v1/domains", { signal });
+      return {
+        data: normalizeDomainsRollup(res.data),
+        meta: res.meta,
+        url: res.url,
+      } as ApiResult<DomainsRollup>;
+    },
+    staleTime: STALE_MED,
+  });
+
+/** One capability tag's summary — `GET /api/v1/domains/{tag}/summary` (#6996).
+ * Same per-domain shape as a list row; null when the tag isn't in the
+ * taxonomy (a normalized-null row surfaces the not-found state on the page). */
+export const domainSummaryQuery = (tag: string) =>
+  queryOptions({
+    queryKey: k("domain-summary", tag),
+    queryFn: async ({ signal }) => {
+      const res = await apiFetch<unknown>(`/api/v1/domains/${encodeURIComponent(tag)}/summary`, {
+        signal,
+      });
+      return {
+        data: normalizeDomainRollup(res.data),
+        meta: res.meta,
+        url: res.url,
+      } as ApiResult<DomainRollup | null>;
+    },
+    staleTime: STALE_MED,
   });
 
 // Account explorer — cross-subnet activity for one hotkey/coldkey ss58. The
